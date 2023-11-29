@@ -3,6 +3,8 @@ package mediasoup
 import (
 	"encoding/json"
 	"strings"
+
+	FBSReponse "github.com/jiyeyuran/mediasoup-go/FBS/Response"
 )
 
 type internalData struct {
@@ -62,8 +64,9 @@ type workerRequest struct {
 
 // workerResponse represents the json response returned from the worker
 type workerResponse struct {
-	data json.RawMessage
-	err  error
+	data     json.RawMessage
+	response *FBSReponse.BodyT
+	err      error
 }
 
 func (r workerResponse) Unmarshal(v interface{}) error {

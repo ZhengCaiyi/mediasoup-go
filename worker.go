@@ -18,6 +18,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-version"
 	"github.com/jiyeyuran/mediasoup-go/netcodec"
+
+	FBSNotifcication "github.com/jiyeyuran/mediasoup-go/FBS/Notification"
+	FBSRequest "github.com/jiyeyuran/mediasoup-go/FBS/Request"
+	FBSWorker "github.com/jiyeyuran/mediasoup-go/FBS/Worker"
 )
 
 var (
@@ -32,11 +36,11 @@ func getDefaultWorkerBin() string {
 	if len(workerBin) > 0 {
 		return workerBin
 	}
-	return "/usr/local/lib/node_modules/mediasoup/worker/out/Release/mediasoup-worker"
+	return "/Users/felix.zheng/source/mediasoup/worker/out/Release/build/mediasoup-worker"
 }
 
 func getDefaultWorkerVersion() string {
-	return os.Getenv("MEDIASOUP_WORKER_VERSION")
+	return os.Getenv("1.0.0")
 }
 
 // WorkerLogLevel controls log level in mediasoup-worker
@@ -283,8 +287,9 @@ func NewWorker(options ...Option) (worker *Worker, err error) {
 	channel := newChannel(channelCodec, pid, useHandlerID)
 	payloadChannel := newPayloadChannel(payloadChannelCodec, useHandlerID)
 
-	channel.Subscribe(strconv.Itoa(pid), func(event string, data []byte) {
-		if atomic.CompareAndSwapUint32(&spawnDone, 0, 1) && event == "running" {
+	channel.SubscribeFBS(strconv.Itoa(pid), func(event FBSNotifcication.Event, data *FBSNotifcication.BodyT) {
+
+		if atomic.CompareAndSwapUint32(&spawnDone, 0, 1) && event == FBSNotifcication.EventWORKER_RUNNING {
 			logger.V(1).Info("worker process running", "pid", pid)
 			close(doneCh)
 		}
@@ -552,10 +557,17 @@ func (w *Worker) CreateRouter(options RouterOptions) (router *Router, err error)
 	w.logger.V(1).Info("createRouter()")
 
 	internal := internalData{RouterId: uuid.NewString()}
-	reqData := H{
-		"routerId": internal.RouterId,
+
+	createRouterReq := &FBSWorker.CreateRouterRequestT{
+		RouterId: internal.RouterId,
 	}
-	rsp := w.channel.Request("worker.createRouter", internal, reqData)
+
+	requestData := &FBSRequest.BodyT{
+		Type:  FBSRequest.BodyWorker_CreateRouterRequest,
+		Value: createRouterReq,
+	}
+
+	rsp := w.channel.Request("worker.createRouter", internal, requestData)
 	if err = rsp.Err(); err != nil {
 		return
 	}

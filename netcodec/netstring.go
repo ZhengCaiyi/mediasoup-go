@@ -2,9 +2,7 @@ package netcodec
 
 import (
 	"bufio"
-	"errors"
 	"io"
-	"strconv"
 )
 
 type State int
@@ -37,48 +35,62 @@ func NewNetStringCodec(w io.WriteCloser, r io.ReadCloser) Codec {
 }
 
 func (c NetStringCodec) WritePayload(payload []byte) error {
-	length := strconv.Itoa(len(payload))
+	/*
+		length := strconv.Itoa(len(payload))
 
-	buffer := make([]byte, 0, len(length)+len(payload)+2)
-	buffer = append(buffer, []byte(length)...)
-	buffer = append(buffer, SEPARATOR_SYMBOL)
-	buffer = append(buffer, payload...)
-	buffer = append(buffer, END_SYMBOL)
+		buffer := make([]byte, 0, len(length)+len(payload)+2)
+		buffer = append(buffer, []byte(length)...)
+		buffer = append(buffer, SEPARATOR_SYMBOL)
+		buffer = append(buffer, payload...)
+		buffer = append(buffer, END_SYMBOL)
 
-	_, err := c.w.Write(buffer)
+		_, err := c.w.Write(buffer)
+	*/
+	_, err := c.w.Write(payload)
 	return err
 }
 
 func (c NetStringCodec) ReadPayload() (payload []byte, err error) {
-	begin, err := c.r.ReadString(SEPARATOR_SYMBOL)
+	temppayload := make([]byte, 20*1024)
+	n, err := c.r.Read(temppayload)
+
 	if err != nil {
 		return
 	}
-	if len(begin) < 1 {
-		err = errors.New("invalid payload start")
-		return
-	}
-	if separator := begin[len(begin)-1]; separator != SEPARATOR_SYMBOL {
-		err = errors.New("invalid payload separator")
-		return
-	}
-	length, err := strconv.Atoi(begin[:len(begin)-1])
-	if err != nil {
-		return
-	}
-	payload = make([]byte, length)
-	if _, err = io.ReadFull(c.r, payload); err != nil {
-		return
-	}
-	end, err := c.r.ReadByte()
-	if err != nil {
-		return
-	}
-	if end != END_SYMBOL {
-		err = errors.New("invalid payload end")
-		return
-	}
+
+	println("n=", n)
+	payload = temppayload[0:n]
 	return
+	/*
+		begin, err := c.r.ReadString(SEPARATOR_SYMBOL)
+		if err != nil {
+			return
+		}
+		if len(begin) < 1 {
+			err = errors.New("invalid payload start")
+			return
+		}
+		if separator := begin[len(begin)-1]; separator != SEPARATOR_SYMBOL {
+			err = errors.New("invalid payload separator")
+			return
+		}
+		length, err := strconv.Atoi(begin[:len(begin)-1])
+		if err != nil {
+			return
+		}
+		payload = make([]byte, length)
+		if _, err = io.ReadFull(c.r, payload); err != nil {
+			return
+		}
+		end, err := c.r.ReadByte()
+		if err != nil {
+			return
+		}
+		if end != END_SYMBOL {
+			err = errors.New("invalid payload end")
+			return
+		}
+		return*/
 }
 
 func (c *NetStringCodec) Close() (err error) {

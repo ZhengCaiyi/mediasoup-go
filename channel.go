@@ -1,7 +1,6 @@
 package mediasoup
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -9,17 +8,27 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/jiyeyuran/mediasoup-go/netcodec"
+
+	FBSMessage "github.com/jiyeyuran/mediasoup-go/FBS/Message"
+
+	FBSNotifcication "github.com/jiyeyuran/mediasoup-go/FBS/Notification"
+
+	FBSRequest "github.com/jiyeyuran/mediasoup-go/FBS/Request"
+
+	FBSReponse "github.com/jiyeyuran/mediasoup-go/FBS/Response"
 )
 
 type channelSubscriber func(event string, data []byte)
+type channelSubscriberFBS func(event FBSNotifcication.Event, data *FBSNotifcication.BodyT)
 
 type Channel struct {
 	logger          logr.Logger
 	codec           netcodec.Codec
 	closed          int32
 	pid             int
-	nextId          int64
+	nextId          uint32
 	sents           sync.Map
 	sentChan        chan sentInfo
 	closeCh         chan struct{}
@@ -73,52 +82,37 @@ func (c *Channel) Closed() bool {
 	return atomic.LoadInt32(&c.closed) > 0
 }
 
-func (c *Channel) Request(method string, internal internalData, data ...interface{}) (rsp workerResponse) {
+func (c *Channel) FFSRequest(method FBSRequest.Method, body *FBSRequest.BodyT, internal internalData) (rsp workerResponse) {
+
 	if c.Closed() {
 		rsp.err = NewInvalidStateError("Channel closed")
 		return
 	}
-	id := atomic.AddInt64(&c.nextId, 1)
-	atomic.CompareAndSwapInt64(&c.nextId, 4294967295, 1)
 
-	if !c.useHandlerID {
-		if v, ok := c.oldCloseMethods[method]; ok {
-			method = v
-		}
-	}
+	id := atomic.AddUint32(&c.nextId, 1)
 
-	c.logger.V(1).Info("request()", "method", method, "id", id)
+	builder := flatbuffers.NewBuilder(0)
+	methodString := FBSRequest.EnumNamesMethod[method]
+	handlerId := internal.HandlerID(methodString)
+	req := new(FBSRequest.RequestT)
+	req.Id = id
+	req.Method = method
+	req.HandlerId = handlerId
+	req.Body = body
 
-	var (
-		rawData []byte
-		request []byte
-	)
+	msgBody := new(FBSMessage.BodyT)
+	msgBody.Type = FBSMessage.BodyRequest
+	msgBody.Value = req
 
-	if len(data) > 0 {
-		if rawData, rsp.err = json.Marshal(data[0]); rsp.err != nil {
-			return
-		}
-	} else {
-		rawData, _ = json.Marshal(nil)
-	}
+	message := new(FBSMessage.MessageT)
+	message.Data = msgBody
 
-	if c.useHandlerID {
-		request = []byte(fmt.Sprintf("%d:%s:%s:%s", id, method, internal.HandlerID(method), rawData))
-	} else {
-		request, _ = json.Marshal(workerRequest{
-			Id:       id,
-			Method:   method,
-			Internal: internal,
-			Data:     rawData,
-		})
-	}
-
-	if len(request) > NS_MESSAGE_MAX_LEN {
-		return workerResponse{err: errors.New("Channel request too big")}
-	}
+	offsset := message.Pack(builder)
+	builder.Finish(offsset)
+	request := builder.FinishedBytes()
 
 	sent := sentInfo{
-		method:  method,
+		method:  methodString,
 		request: request,
 		respCh:  make(chan workerResponse),
 	}
@@ -149,9 +143,18 @@ func (c *Channel) Request(method string, internal internalData, data ...interfac
 		rsp.err = NewInvalidStateError("Channel closed, id: %d, method: %s", id, method)
 	}
 	return
+
+}
+
+func (c *Channel) Request(method string, internal internalData, data ...interface{}) (rsp workerResponse) {
+	return
 }
 
 func (c *Channel) Subscribe(targetId string, handler channelSubscriber) {
+	c.subscribers.Store(targetId, handler)
+}
+
+func (c *Channel) SubscribeFBS(targetId string, handler channelSubscriberFBS) {
 	c.subscribers.Store(targetId, handler)
 }
 
@@ -189,82 +192,132 @@ func (c *Channel) runReadLoop() {
 }
 
 func (c *Channel) processPayload(nsPayload []byte) {
-	switch nsPayload[0] {
-	case '{':
-		c.processMessage(nsPayload)
-	case 'D':
-		c.logger.V(1).Info(string(nsPayload[1:]), "pid", c.pid)
-	case 'W':
-		c.logger.Info(string(nsPayload[1:]), "pid", c.pid, "warn", true)
-	case 'E':
-		c.logger.Error(nil, string(nsPayload[1:]), "pid", c.pid)
-	case 'X':
-		fmt.Printf("%s\n", nsPayload[1:])
-	default:
-		c.logger.Error(errors.New(string(nsPayload[1:])), "unexpected data", "pid", c.pid)
+
+	/*
+		switch nsPayload[0] {
+		case '{':
+			c.processMessage(nsPayload)
+		case 'D':
+			c.logger.V(1).Info(string(nsPayload[1:]), "pid", c.pid)
+		case 'W':
+			c.logger.Info(string(nsPayload[1:]), "pid", c.pid, "warn", true)
+		case 'E':
+			c.logger.Error(nil, string(nsPayload[1:]), "pid", c.pid)
+		case 'X':
+			fmt.Printf("%s\n", nsPayload[1:])
+		default:
+			c.logger.Error(errors.New(string(nsPayload[1:])), "unexpected data", "pid", c.pid)
+		}
+	*/
+	messageFBS := FBSMessage.GetSizePrefixedRootAsMessage(nsPayload, 0)
+	msg := messageFBS.UnPack()
+	msgData := msg.Data
+	if msgData.Type == FBSMessage.BodyResponse {
+		response := msgData.Value.(*FBSReponse.ResponseT)
+		c.processResponse(response)
+	} else if msgData.Type == FBSMessage.BodyNotification {
+		notification := msgData.Value.(*FBSNotifcication.NotificationT)
+		c.processNotification(notification)
+	}
+}
+
+func (c *Channel) processResponse(msg *FBSReponse.ResponseT) {
+	value, ok := c.sents.Load(msg.Id)
+
+	if !ok {
+		return
+	}
+	sent := value.(sentInfo)
+
+	if msg.Accepted {
+		c.logger.V(1).Info("request succeeded", "method", sent.method, "id", msg.Id)
+
+		sent.respCh <- workerResponse{response: msg.Body}
+	} else if len(msg.Error) > 0 {
+		c.logger.Error(errors.New(msg.Reason), "request failed", "method", sent.method, "id", msg.Id)
+
+		if msg.Error == "TypeError" {
+			sent.respCh <- workerResponse{err: NewTypeError(msg.Reason)}
+		} else {
+			sent.respCh <- workerResponse{err: errors.New(msg.Reason)}
+		}
+	} else {
+		c.logger.Error(nil, "received response is not accepted nor rejected", "method", sent.method, "id", msg.Id)
+	}
+}
+
+func (c *Channel) processNotification(msg *FBSNotifcication.NotificationT) {
+
+	if handler, ok := c.subscribers.Load(msg.HandlerId); ok {
+		handler.(channelSubscriberFBS)(msg.Event, msg.Body)
+		c.logger.V(1).Info("received a notification", "targetId", msg.HandlerId, "event", msg.Event.String())
+	} else {
+		c.logger.V(1).Info("received an unhandled notification", "targetId", msg.HandlerId, "event", msg.Event.String())
 	}
 }
 
 func (c *Channel) processMessage(nsPayload []byte) {
-	var msg struct {
-		// response
-		Id       int64  `json:"id,omitempty"`
-		Accepted bool   `json:"accepted,omitempty"`
-		Error    string `json:"error,omitempty"`
-		Reason   string `json:"reason,omitempty"`
-		// notification
-		TargetId interface{} `json:"targetId,omitempty"`
-		Event    string      `json:"event,omitempty"`
-		// common data
-		Data json.RawMessage `json:"data,omitempty"`
-	}
-	if err := json.Unmarshal(nsPayload, &msg); err != nil {
-		c.logger.Error(err, "received response, failed to unmarshal to json", "payload", json.RawMessage(nsPayload))
-		return
-	}
 
-	if msg.Id > 0 {
-		value, ok := c.sents.Load(msg.Id)
-		if !ok {
-			c.logger.Error(nil, "received response does not match any sent request", "id", msg.Id)
+	/*
+		var msg struct {
+			// response
+			Id       int64  `json:"id,omitempty"`
+			Accepted bool   `json:"accepted,omitempty"`
+			Error    string `json:"error,omitempty"`
+			Reason   string `json:"reason,omitempty"`
+			// notification
+			TargetId interface{} `json:"targetId,omitempty"`
+			Event    string      `json:"event,omitempty"`
+			// common data
+			Data json.RawMessage `json:"data,omitempty"`
+		}
+		if err := json.Unmarshal(nsPayload, &msg); err != nil {
+			c.logger.Error(err, "received response, failed to unmarshal to json", "payload", json.RawMessage(nsPayload))
 			return
 		}
-		sent := value.(sentInfo)
 
-		if msg.Accepted {
-			c.logger.V(1).Info("request succeeded", "method", sent.method, "id", msg.Id)
+		if msg.Id > 0 {
+			value, ok := c.sents.Load(msg.Id)
+			if !ok {
+				c.logger.Error(nil, "received response does not match any sent request", "id", msg.Id)
+				return
+			}
+			sent := value.(sentInfo)
 
-			sent.respCh <- workerResponse{data: msg.Data}
-		} else if len(msg.Error) > 0 {
-			c.logger.Error(errors.New(msg.Reason), "request failed", "method", sent.method, "id", msg.Id)
+			if msg.Accepted {
+				c.logger.V(1).Info("request succeeded", "method", sent.method, "id", msg.Id)
 
-			if msg.Error == "TypeError" {
-				sent.respCh <- workerResponse{err: NewTypeError(msg.Reason)}
+				sent.respCh <- workerResponse{data: msg.Data}
+			} else if len(msg.Error) > 0 {
+				c.logger.Error(errors.New(msg.Reason), "request failed", "method", sent.method, "id", msg.Id)
+
+				if msg.Error == "TypeError" {
+					sent.respCh <- workerResponse{err: NewTypeError(msg.Reason)}
+				} else {
+					sent.respCh <- workerResponse{err: errors.New(msg.Reason)}
+				}
 			} else {
-				sent.respCh <- workerResponse{err: errors.New(msg.Reason)}
+				c.logger.Error(nil, "received response is not accepted nor rejected", "method", sent.method, "id", msg.Id)
+			}
+		} else if msg.TargetId != nil && len(msg.Event) > 0 {
+			var targetId string
+			// The type of msg.TargetId should be string or float64
+			switch v := msg.TargetId.(type) {
+			case string:
+				targetId = v
+			case float64:
+				targetId = fmt.Sprintf("%0.0f", v)
+			default:
+				targetId = fmt.Sprintf("%v", v)
+			}
+
+			if handler, ok := c.subscribers.Load(targetId); ok {
+				handler.(channelSubscriber)(msg.Event, msg.Data)
+				c.logger.V(1).Info("received a notification", "targetId", targetId, "event", msg.Event)
+			} else {
+				c.logger.V(1).Info("received an unhandled notification", "targetId", targetId, "event", msg.Event)
 			}
 		} else {
-			c.logger.Error(nil, "received response is not accepted nor rejected", "method", sent.method, "id", msg.Id)
-		}
-	} else if msg.TargetId != nil && len(msg.Event) > 0 {
-		var targetId string
-		// The type of msg.TargetId should be string or float64
-		switch v := msg.TargetId.(type) {
-		case string:
-			targetId = v
-		case float64:
-			targetId = fmt.Sprintf("%0.0f", v)
-		default:
-			targetId = fmt.Sprintf("%v", v)
-		}
-
-		if handler, ok := c.subscribers.Load(targetId); ok {
-			handler.(channelSubscriber)(msg.Event, msg.Data)
-			c.logger.V(1).Info("received a notification", "targetId", targetId, "event", msg.Event)
-		} else {
-			c.logger.V(1).Info("received an unhandled notification", "targetId", targetId, "event", msg.Event)
-		}
-	} else {
-		c.logger.Error(nil, "received message is not a response nor a notification")
-	}
+			c.logger.Error(nil, "received message is not a response nor a notification")
+		}*/
 }

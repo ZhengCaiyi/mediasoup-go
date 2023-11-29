@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
+
+	FBSRouter "github.com/jiyeyuran/mediasoup-go/FBS/Router"
+	FBSWebRtcTransport "github.com/jiyeyuran/mediasoup-go/FBS/WebRtcTransport"
+
+	FBSRequest "github.com/jiyeyuran/mediasoup-go/FBS/Request"
+	FBSTransport "github.com/jiyeyuran/mediasoup-go/FBS/Transport"
 )
 
 // pipeRouterGroup is a singleflight group to avoid pipe the same routers pair
@@ -294,32 +300,60 @@ func (router *Router) CreateWebRtcTransport(option WebRtcTransportOptions) (tran
 
 	router.logger.V(1).Info("createWebRtcTransport()")
 
-	method := "router.createWebRtcTransport"
+	//method := "router.createWebRtcTransport"
 	internal := router.internal
+
 	internal.TransportId = uuid.NewString()
 
-	reqData := H{
-		"transportId":                     internal.TransportId,
-		"listenIps":                       options.ListenIps,
-		"enableUdp":                       options.EnableUdp,
-		"enableTcp":                       options.EnableTcp,
-		"preferUdp":                       options.PreferUdp,
-		"preferTcp":                       options.PreferTcp,
-		"initialAvailableOutgoingBitrate": options.InitialAvailableOutgoingBitrate,
-		"enableSctp":                      options.EnableSctp,
-		"numSctpStreams":                  options.NumSctpStreams,
-		"maxSctpMessageSize":              options.MaxSctpMessageSize,
-		"sctpSendBufferSize":              options.SctpSendBufferSize,
-		"isDataChannel":                   true,
-	}
+	initialAvailableOutgoingBitrate := new(uint32)
+	*initialAvailableOutgoingBitrate = uint32(options.InitialAvailableOutgoingBitrate)
 
-	if options.WebRtcServer != nil {
-		method = "router.createWebRtcTransportWithServer"
-		reqData["webRtcServerId"] = option.WebRtcServer.Id()
+	maxMessageSize := new(uint32)
+	*maxMessageSize = uint32(options.MaxSctpMessageSize)
+	req := &FBSRouter.CreateWebRtcTransportRequestT{
+		TransportId: internal.TransportId,
+		Options: &FBSWebRtcTransport.WebRtcTransportOptionsT{
+			Base: &FBSTransport.OptionsT{
+				InitialAvailableOutgoingBitrate: initialAvailableOutgoingBitrate,
+				EnableSctp:                      option.EnableTcp,
+				MaxMessageSize:                  maxMessageSize,
+				SctpSendBufferSize:              uint32(options.SctpSendBufferSize),
+				IsDataChannel:                   true,
+			},
+			Listen: &FBSWebRtcTransport.ListenT{
+				Type: FBSWebRtcTransport.ListenListenIndividual,
+				Value: &FBSWebRtcTransport.ListenIndividualT{
+					ListenInfos: []*FBSTransport.ListenInfoT{
+						{
+							Ip:          options.ListenIps[0].Ip,
+							AnnouncedIp: options.ListenIps[0].AnnouncedIp,
+						},
+					},
+				},
+			},
+			EnableTcp: options.EnableTcp,
+			EnableUdp: *options.EnableUdp,
+			PreferTcp: option.PreferTcp,
+			PreferUdp: option.PreferUdp,
+		},
 	}
+	req.TransportId = internal.TransportId
 
+	// todo: use existing server id
+	/*
+		if options.WebRtcServer != nil {
+			method = "router.createWebRtcTransportWithServer"
+
+			reqData["webRtcServerId"] = option.WebRtcServer.Id()
+		}
+	*/
 	var data *webrtcTransportData
-	if err = router.channel.Request(method, internal, reqData).Unmarshal(&data); err != nil {
+
+	body := &FBSRequest.BodyT{
+		Type:  FBSRequest.BodyRouter_CreateWebRtcTransportRequest,
+		Value: req,
+	}
+	if err = router.channel.FFSRequest(FBSRequest.MethodROUTER_CREATE_WEBRTCTRANSPORT, body, internal).Unmarshal(&data); err != nil {
 		return
 	}
 	transport = router.createTransport(internal, data, options.AppData).(*WebRtcTransport)
