@@ -189,6 +189,9 @@ func (c *Channel) runReadLoop() {
 }
 
 func (c *Channel) processPayload(nsPayload []byte) {
+	if len(nsPayload) == 0 {
+		return
+	}
 	switch nsPayload[0] {
 	case '{':
 		c.processMessage(nsPayload)

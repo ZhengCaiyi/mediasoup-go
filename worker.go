@@ -32,7 +32,7 @@ func getDefaultWorkerBin() string {
 	if len(workerBin) > 0 {
 		return workerBin
 	}
-	return "/usr/local/lib/node_modules/mediasoup/worker/out/Release/mediasoup-worker"
+	return "/Users/felix.zheng/source/mediasoup/worker/out/Release/build/mediasoup-worker"
 }
 
 func getDefaultWorkerVersion() string {

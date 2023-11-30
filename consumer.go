@@ -558,6 +558,9 @@ func (consumer *Consumer) handleWorkerNotifications() {
 	logger := consumer.logger
 
 	consumer.channel.Subscribe(consumer.Id(), func(event string, data []byte) {
+		if consumer.Closed() {
+			return
+		}
 		switch event {
 		case "producerclose":
 			if atomic.CompareAndSwapUint32(&consumer.closed, 0, 1) {
