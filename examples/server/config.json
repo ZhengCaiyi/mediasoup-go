@@ -1,0 +1,123 @@
+{
+    "workerBinPath":"/Users/felix.zheng/source/mediasoup/worker/out/Release/build/mediasoup-worker",
+    "domain": "localhost",
+    "https": {
+      "listenIP": "0.0.0.0",
+      "listenPort": 4443,
+      "tls": {
+        "cert": "/Users/felix.zheng/source/mediasoup-go/examples/server/certs/fullchain.pem",
+        "key": "/Users/felix.zheng/source/mediasoup-go/examples/server/certs/privkey.key"
+      }
+    },
+    "mediasoup": {
+      "numWorkers": 10,
+      "workerSettings": {
+        "WorkerBin": "",
+        "WorkerVersion": "",
+        "logLevel": "warn",
+        "logTags": [
+          "info",
+          "ice",
+          "dtls",
+          "rtp",
+          "srtp",
+          "rtcp",
+          "rtx",
+          "bwe",
+          "score",
+          "simulcast",
+          "svc",
+          "sctp"
+        ],
+        "rtcMinPort": 40000,
+        "rtcMaxPort": 49999,
+        "CustomOptions": null
+      },
+      "routerOptions": {
+        "mediaCodecs": [
+          {
+            "kind": "audio",
+            "mimeType": "audio/opus",
+            "preferredPayloadType": 0,
+            "clockRate": 48000,
+            "channels": 2,
+            "parameters": {},
+            "rtcpFeedback": null
+          },
+          {
+            "kind": "video",
+            "mimeType": "video/VP8",
+            "preferredPayloadType": 0,
+            "clockRate": 90000,
+            "parameters": {
+              "x-google-start-bitrate": 1000
+            },
+            "rtcpFeedback": null
+          },
+          {
+            "kind": "video",
+            "mimeType": "video/VP9",
+            "preferredPayloadType": 0,
+            "clockRate": 90000,
+            "parameters": {
+              "profile-id": 2,
+              "x-google-start-bitrate": 1000
+            },
+            "rtcpFeedback": null
+          },
+          {
+            "kind": "video",
+            "mimeType": "video/h264",
+            "preferredPayloadType": 0,
+            "clockRate": 90000,
+            "parameters": {
+              "packetization-mode": 1,
+              "profile-level-id": "42e01f",
+              "level-asymmetry-allowed": 1,
+              "x-google-start-bitrate": 1000
+            },
+            "rtcpFeedback": null
+          },
+          {
+            "kind": "video",
+            "mimeType": "video/h264",
+            "preferredPayloadType": 0,
+            "clockRate": 90000,
+            "parameters": {
+              "packetization-mode": 1,
+              "profile-level-id": "4d0032",
+              "level-asymmetry-allowed": 1,
+              "x-google-start-bitrate": 1000
+            },
+            "rtcpFeedback": null
+          }
+        ]
+      },
+      "webRtcTransportOptions": {
+        "listenIps": [
+          {
+            "ip": "10.32.58.45",
+            "announcedIp": "10.32.58.45"
+          }
+        ],
+        "initialAvailableOutgoingBitrate": 1000000,
+        "numSctpStreams": {
+          "OS": 0,
+          "MIS": 0
+        },
+        "maxSctpMessageSize": 262144,
+        "maxIncomingBitrate": 1500000
+      },
+      "plainTransportOptions": {
+        "listenIp": {
+          "ip": "10.32.58.45",
+          "announcedIp": "10.32.58.45"
+        },
+        "numSctpStreams": {
+          "OS": 0,
+          "MIS": 0
+        },
+        "maxSctpMessageSize": 262144
+      }
+    }
+  }

@@ -44,7 +44,7 @@ func NewServer(config Config) *Server {
 		zl := NewLogger(scope)
 		return zerologr.New(&zl)
 	}
-	// mediasoup.WorkerBin = "your mediasoup-worker path"
+	mediasoup.WorkerBin = config.WorkerBinPath
 
 	// you should setup the right mediasoup-worker version!!!
 	// mediasoup.WorkerVersion = "your mediasoup-worker version"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,9 +11,10 @@ import (
 )
 
 type Config struct {
-	Domain    string          `json:"domain,omitempty"`
-	Https     HTTPSConfig     `json:"https,omitempty"`
-	Mediasoup MediasoupConfig `json:"mediasoup,omitempty"`
+	Domain        string          `json:"domain,omitempty"`
+	Https         HTTPSConfig     `json:"https,omitempty"`
+	Mediasoup     MediasoupConfig `json:"mediasoup,omitempty"`
+	WorkerBinPath string          `json:"workerBinPath,omitempty"`
 }
 
 type HTTPSConfig struct {
@@ -207,16 +209,13 @@ var (
 
 // Get preferred outbound ip of this machine
 func GetOutboundIP() string {
-	/*
-		conn, err := net.Dial("udp", "8.8.8.8:80")
-		if err != nil {
-			return ""
-		}
-		defer conn.Close()
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
 
-		localAddr := conn.LocalAddr().(*net.UDPAddr)
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
-		return localAddr.IP.String()
-	*/
-	return "10.32.58.45"
+	return localAddr.IP.String()
 }
