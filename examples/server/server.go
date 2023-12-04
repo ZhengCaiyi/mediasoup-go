@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,11 +34,13 @@ type Server struct {
 	config                 Config
 	rooms                  sync.Map
 	mediasoupWorkers       []*mediasoup.Worker
+	webrtcServers          []*mediasoup.WebRtcServer
 	nextMediasoupWorkerIdx int
 }
 
 func NewServer(config Config) *Server {
 	workers := []*mediasoup.Worker{}
+	servers := []*mediasoup.WebRtcServer{}
 	logger := NewLogger("Server")
 
 	mediasoup.NewLogger = func(scope string) logr.Logger {
@@ -48,7 +51,7 @@ func NewServer(config Config) *Server {
 
 	// you should setup the right mediasoup-worker version!!!
 	// mediasoup.WorkerVersion = "your mediasoup-worker version"
-
+	webrtcServerOptions := config.Mediasoup.WebRtcServerOptions
 	for i := 0; i < config.Mediasoup.NumWorkers; i++ {
 		worker, err := mediasoup.NewWorker(
 			mediasoup.WithLogLevel(config.Mediasoup.WorkerSettings.LogLevel),
@@ -67,7 +70,19 @@ func NewServer(config Config) *Server {
 			})
 		})
 
+		webrtcOptionsString, _ := json.Marshal(&webrtcServerOptions)
+
+		var webrtcServerOptions mediasoup.WebRtcServerOptions
+		json.Unmarshal([]byte(webrtcOptionsString), &webrtcServerOptions)
+
+		for j, _ := range webrtcServerOptions.ListenInfos {
+			listenInfo := &webrtcServerOptions.ListenInfos[j]
+			listenInfo.Port = listenInfo.Port + uint16(i)
+		}
+		webrtcServer, err := worker.CreateWebRtcServer(webrtcServerOptions)
+
 		workers = append(workers, worker)
+		servers = append(servers, webrtcServer)
 
 		go func() {
 			ticker := time.NewTicker(120 * time.Second)
@@ -89,6 +104,7 @@ func NewServer(config Config) *Server {
 		logger:           logger,
 		config:           config,
 		mediasoupWorkers: workers,
+		webrtcServers:    servers,
 	}
 }
 
@@ -301,8 +317,9 @@ func (s *Server) getOrCreateRoom(roomId string) (room *Room, err error) {
 	}
 
 	worker := s.mediasoupWorkers[s.nextMediasoupWorkerIdx]
+	server := s.webrtcServers[s.nextMediasoupWorkerIdx]
 
-	room, err = CreateRoom(s.config, roomId, worker)
+	room, err = CreateRoom(s.config, roomId, worker, server)
 	if err != nil {
 		return
 	}

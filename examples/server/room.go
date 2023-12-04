@@ -30,14 +30,8 @@ type Room struct {
 	closed             uint32
 }
 
-func CreateRoom(config Config, roomId string, worker *mediasoup.Worker) (room *Room, err error) {
+func CreateRoom(config Config, roomId string, worker *mediasoup.Worker, server *mediasoup.WebRtcServer) (room *Room, err error) {
 	logger := NewLogger("Room")
-
-	webrtcOptionsString, _ := json.Marshal(&config.Mediasoup.WebRtcServerOptions)
-	var webrtcServerOptions mediasoup.WebRtcServerOptions
-	json.Unmarshal([]byte(webrtcOptionsString), &webrtcServerOptions)
-
-	webrtcServer, err := worker.CreateWebRtcServer(webrtcServerOptions)
 
 	mediasoupRouter, err := worker.CreateRouter(config.Mediasoup.RouterOptions)
 	if err != nil {
@@ -69,7 +63,7 @@ func CreateRoom(config Config, roomId string, worker *mediasoup.Worker) (room *R
 		mediasoupRouter:    mediasoupRouter,
 		audioLevelObserver: audioLevelObserver,
 		bot:                bot,
-		webrtcServer:       webrtcServer,
+		webrtcServer:       server,
 	}
 	room.handleAudioLevelObserver()
 
