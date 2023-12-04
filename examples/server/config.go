@@ -28,11 +28,22 @@ type TLSConfig struct {
 	Key  string `json:"key,omitempty"`
 }
 
+type ListenInfo struct {
+	Protocol    string `json:"protocol,omitempty"`
+	IP          string `json:"ip,omitempty"`
+	AnnouncedIp string `json:"announcedIp,omitempty"`
+	Port        int    `json:"port,omitempty"`
+}
+type WebRtcServerOptions struct {
+	ListenInfos []ListenInfo `json:"listenInfos,omitempty"`
+}
+
 type MediasoupConfig struct {
 	NumWorkers             int                             `json:"numWorkers,omitempty"`
 	WorkerSettings         mediasoup.WorkerSettings        `json:"workerSettings,omitempty"`
 	RouterOptions          mediasoup.RouterOptions         `json:"routerOptions,omitempty"`
 	WebRtcTransportOptions WebRtcTransportOptions          `json:"webRtcTransportOptions,omitempty"`
+	WebRtcServerOptions    WebRtcServerOptions             `json:"webRtcServerOptions,omitempty"`
 	PlainTransportOptions  mediasoup.PlainTransportOptions `json:"plainTransportOptions,omitempty"`
 }
 
@@ -195,6 +206,16 @@ var (
 				InitialAvailableOutgoingBitrate: 1000000,
 				MaxSctpMessageSize:              262144,
 				MaxIncomingBitrate:              1500000,
+			},
+			WebRtcServerOptions: WebRtcServerOptions{
+				ListenInfos: []ListenInfo{
+					{
+						Protocol:    "udp",
+						IP:          "0.0.0.0",
+						AnnouncedIp: GetOutboundIP(),
+						Port:        44444,
+					},
+				},
 			},
 			PlainTransportOptions: mediasoup.PlainTransportOptions{
 				ListenIp: mediasoup.TransportListenIp{

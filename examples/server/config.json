@@ -10,7 +10,7 @@
       }
     },
     "mediasoup": {
-      "numWorkers": 10,
+      "numWorkers": 1,
       "workerSettings": {
         "WorkerBin": "",
         "WorkerVersion": "",
@@ -96,8 +96,8 @@
       "webRtcTransportOptions": {
         "listenIps": [
           {
-            "ip": "10.32.58.45",
-            "announcedIp": "10.32.58.45"
+            "ip": "192.168.6.208",
+            "announcedIp": "192.168.6.208"
           }
         ],
         "initialAvailableOutgoingBitrate": 1000000,
@@ -108,10 +108,25 @@
         "maxSctpMessageSize": 262144,
         "maxIncomingBitrate": 1500000
       },
+      "webRtcServerOptions": {
+        "listenInfos": [{
+            "protocol": "udp",
+            "ip": "0.0.0.0",
+            "announcedIp": "192.168.6.208",
+            "port": 44444
+          },
+          {
+            "protocol": "tcp",
+            "ip": "0.0.0.0",
+            "announcedIp": "192.168.6.208",
+            "port": 44444
+          }
+        ]
+      },
       "plainTransportOptions": {
         "listenIp": {
-          "ip": "10.32.58.45",
-          "announcedIp": "10.32.58.45"
+          "ip": "192.168.6.208",
+          "announcedIp": "192.168.6.208"
         },
         "numSctpStreams": {
           "OS": 0,

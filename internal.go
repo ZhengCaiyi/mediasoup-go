@@ -43,7 +43,7 @@ func (i internalData) HandlerID(method string) string {
 		return i.WebRtcServerId
 
 	default:
-		return "undefined"
+		return ""
 	}
 }
 

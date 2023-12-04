@@ -22,6 +22,7 @@ type Room struct {
 	roomId             string
 	protooRoom         *protoo.Room
 	mediasoupRouter    *mediasoup.Router
+	webrtcServer       *mediasoup.WebRtcServer
 	audioLevelObserver *mediasoup.AudioLevelObserver
 	bot                *Bot
 	networkThrottled   bool
@@ -31,6 +32,12 @@ type Room struct {
 
 func CreateRoom(config Config, roomId string, worker *mediasoup.Worker) (room *Room, err error) {
 	logger := NewLogger("Room")
+
+	webrtcOptionsString, _ := json.Marshal(&config.Mediasoup.WebRtcServerOptions)
+	var webrtcServerOptions mediasoup.WebRtcServerOptions
+	json.Unmarshal([]byte(webrtcOptionsString), &webrtcServerOptions)
+
+	webrtcServer, err := worker.CreateWebRtcServer(webrtcServerOptions)
 
 	mediasoupRouter, err := worker.CreateRouter(config.Mediasoup.RouterOptions)
 	if err != nil {
@@ -62,6 +69,7 @@ func CreateRoom(config Config, roomId string, worker *mediasoup.Worker) (room *R
 		mediasoupRouter:    mediasoupRouter,
 		audioLevelObserver: audioLevelObserver,
 		bot:                bot,
+		webrtcServer:       webrtcServer,
 	}
 	room.handleAudioLevelObserver()
 
@@ -313,7 +321,7 @@ func (r *Room) handleProtooRequest(peer *protoo.Peer, request protoo.Message, ac
 				Producing: requestData.Producing,
 				Consuming: requestData.Consuming,
 			}
-
+			webRtcTransportOptions.WebRtcServer = r.webrtcServer
 			if requestData.ForceTcp {
 				webRtcTransportOptions.EnableUdp = NewBool(false)
 				webRtcTransportOptions.EnableTcp = true
