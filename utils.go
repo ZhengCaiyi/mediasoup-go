@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/imdario/mergo"
+	"dario.cat/mergo"
 )
 
 func init() {

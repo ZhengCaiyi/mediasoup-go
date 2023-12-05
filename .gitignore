@@ -12,3 +12,5 @@
 
 vendor/
 .vscode/
+examples/server/.DS_Store
+examples/server/server

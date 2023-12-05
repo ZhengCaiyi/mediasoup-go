@@ -39,10 +39,10 @@ type SctpParameters struct {
 	Port uint16 `json:"port"`
 
 	// OS defines initially requested int of outgoing SCTP streams.
-	OS uint16 `json:"os"`
+	OS uint16 `json:"OS"`
 
 	// MIS defines maximum int of incoming SCTP streams.
-	MIS uint16 `json:"mis"`
+	MIS uint16 `json:"MIS"`
 
 	// MaxMessageSize defines maximum allowed size for SCTP messages.
 	MaxMessageSize uint32 `json:"maxMessageSize"`
